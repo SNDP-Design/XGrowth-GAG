@@ -14,41 +14,66 @@ const MODELS_TO_TRY = [
 
 export async function POST(req: Request) {
   try {
-    const { topic, tone } = await req.json();
+    const { role, topic, tone } = await req.json();
 
-    if (!topic) {
-      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
+    if (!topic || !role) {
+      return NextResponse.json({ error: 'Role and topic are required' }, { status: 400 });
     }
 
-    const prompt = `
-      You are an expert X/Twitter ghostwriter.
-      Write a viral Twitter thread about the following topic: "${topic}"
-      The tone of the thread should be: ${tone}.
-      
-      Rules:
-      1. Keep it engaging and actionable.
-      2. Limit the thread to 3-5 tweets.
-      3. Do NOT include numbers like "1/5" at the start of tweets.
-      4. Use formatting like line breaks to make it readable.
-      5. Separate each tweet with the exact string "---TWEET_SEPARATOR---".
-    `;
+    const toneInstructions = {
+      friendly: "Warm, approachable, and encouraging. Use more conversational flow.",
+      'like a story': "Narrative-driven, cinematic, and descriptive. Build suspense and resolution.",
+      emotional: "Deeply human, vulnerable, and passionate. Focus on the 'why' and the feeling."
+    };
+
+    const toneText = toneInstructions[tone as 'friendly' | 'like a story' | 'emotional'] || toneInstructions.friendly;
+
+    const systemInstruction = `You are a professional X (Twitter) ghostwriter for Silicon Valley startup founders. 
+Your goal is to help founders turn ideas into viral-potential tweets and threads. 
+Avoid buzzword spam, generic "hustle culture" tropes, and excessive emojis.
+
+TASK:
+1. Generate exactly 10-15 short tweet ideas.
+2. Label each tweet: Hook, Story, or Lesson.
+3. Generate exactly 3 short "thread-start" options.
+
+OUTPUT FORMAT:
+You MUST return a JSON object with the following structure:
+{
+  "header": "Here are tweet ideas for a [Role] writing about [Topic]",
+  "ideas": [
+    { "type": "Hook", "content": "..." },
+    { "type": "Story", "content": "..." },
+    { "type": "Lesson", "content": "..." },
+    { "type": "Thread-start", "content": "..." }
+  ]
+}
+
+Tone Guidance: ${toneText}
+Role: ${role}
+Topic: ${topic}`;
 
     let lastError = null;
 
     // Try models in fallback order
     for (const modelName of MODELS_TO_TRY) {
       try {
-        console.log(`Attempting generation with model: ${modelName}`);
+        console.log(`Attempting structured generation with model: ${modelName}`);
         const response = await ai.models.generateContent({
           model: modelName,
-          contents: prompt,
+          contents: `Generate ideas for: a ${role} exploring "${topic}"`,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+            responseMimeType: "application/json"
+          }
         });
 
         const text = response.text || '';
-        const tweets = text.split('---TWEET_SEPARATOR---').map(t => t.trim()).filter(t => t.length > 0);
+        const parsed = JSON.parse(text);
 
-        console.log(`Successfully generated content using ${modelName}`);
-        return NextResponse.json({ tweets });
+        console.log(`Successfully generated structured content using ${modelName}`);
+        return NextResponse.json(parsed);
       } catch (error: any) {
         console.warn(`Model ${modelName} failed:`, error.message);
         lastError = error;

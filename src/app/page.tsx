@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Sparkles, Send, Image as ImageIcon, Smile, FileText, Calendar, Clock, X } from "lucide-react";
-
+import { Sparkles, Send, Copy, Check, RefreshCw, Calendar, Clock, X, Sparkle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Twitter = (props: React.SVGProps<SVGSVGElement>) => (
@@ -11,17 +10,80 @@ const Twitter = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+interface TweetIdea {
+  type: 'Hook' | 'Story' | 'Lesson' | 'Thread-start';
+  content: string;
+}
 
-const TONE_OPTIONS = ["Viral Hook", "Educational", "Controversial", "Inspirational", "Storytelling"];
+interface GenerationResult {
+  header: string;
+  ideas: TweetIdea[];
+}
+
+function TweetCard({ idea, index, onSchedule }: { idea: TweetIdea; index: number; onSchedule: () => void }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(idea.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="bg-card border border-border/80 rounded-xl p-5 flex flex-col justify-between group h-full relative hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md">
+      <div>
+        <div className="flex items-start justify-between mb-4">
+          <span className={cn(
+            "text-[10px] uppercase tracking-widest font-mono px-2 py-0.5 rounded-md font-semibold",
+            idea.type === 'Hook' && "bg-blue-500/10 text-blue-400 border border-blue-500/20",
+            idea.type === 'Story' && "bg-purple-500/10 text-purple-400 border border-purple-500/20",
+            idea.type === 'Lesson' && "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",
+            idea.type === 'Thread-start' && "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+          )}>
+            {idea.type}
+          </span>
+          <button
+            onClick={handleCopy}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+          >
+            {copied ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+          </button>
+        </div>
+        
+        <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">
+          {idea.content}
+        </p>
+      </div>
+
+      <div className="mt-5 pt-4 border-t border-border/50 flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground font-mono">
+          {index + 1 < 10 ? `0${index + 1}` : index + 1}
+        </span>
+        <button
+          onClick={onSchedule}
+          className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-all cursor-pointer"
+        >
+          <Send className="w-2.5 h-2.5" />
+          Queue
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function AIWriterPage() {
+  // Ghostwriter State
+  const [role, setRole] = useState("");
   const [topic, setTopic] = useState("");
-  const [selectedTone, setSelectedTone] = useState("Viral Hook");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedContent, setGeneratedContent] = useState<string[]>([]);
+  const [tone, setTone] = useState<'friendly' | 'like a story' | 'emotional'>('friendly');
   
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [result, setResult] = useState<GenerationResult | null>(null);
+  const [copiedAll, setCopiedAll] = useState(false);
+
   // Scheduling Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [schedulingContent, setSchedulingContent] = useState<string[]>([]);
   const [scheduleType, setScheduleType] = useState<"Draft" | "Scheduled">("Draft");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleTime, setScheduleTime] = useState("12:00");
@@ -52,9 +114,9 @@ export default function AIWriterPage() {
   }, []);
 
   const handleGenerate = async () => {
-    if (!topic) return;
+    if (!topic || !role) return;
     setIsGenerating(true);
-    setGeneratedContent([]); // Clear previous content
+    setResult(null);
     
     try {
       const response = await fetch('/api/generate', {
@@ -62,23 +124,29 @@ export default function AIWriterPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ topic, tone: selectedTone }),
+        body: JSON.stringify({ role, topic, tone }),
       });
       
       const data = await response.json();
       
-      if (data.tweets) {
-        setGeneratedContent(data.tweets);
+      if (response.ok) {
+        setResult(data);
       } else {
         console.error("Failed to generate content", data);
-        setGeneratedContent(["Sorry, an error occurred while generating the content. Have you set up your API keys?"]);
+        alert(`Failed to generate: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error:', error);
-      setGeneratedContent(["Sorry, a network error occurred."]);
+      alert("A network error occurred. Please try again.");
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleOpenSchedule = (content: string) => {
+    setSchedulingContent([content]);
+    setScheduleType("Draft");
+    setIsModalOpen(true);
   };
 
   const handleSchedule = async () => {
@@ -94,7 +162,7 @@ export default function AIWriterPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          content: generatedContent,
+          content: schedulingContent,
           status: scheduleType,
           scheduledFor
         }),
@@ -103,9 +171,6 @@ export default function AIWriterPage() {
       const data = await response.json();
       
       if (response.ok) {
-        // Reset everything
-        setGeneratedContent([]);
-        setTopic("");
         setIsModalOpen(false);
         alert(`Successfully saved as ${scheduleType}!`);
       } else {
@@ -119,139 +184,137 @@ export default function AIWriterPage() {
     }
   };
 
+  const handleCopyAll = () => {
+    if (result) {
+      const allText = result.ideas.map(i => `[${i.type}] ${i.content}`).join('\n\n');
+      navigator.clipboard.writeText(allText);
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 2000);
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-8rem)] relative">
-      {/* Left Column - Input area */}
-      <div className="flex flex-col gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-[calc(100vh-8rem)] relative">
+      {/* Left Column - Ghostwriter Inputs Sidebar */}
+      <div className="lg:col-span-4 flex flex-col gap-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight mb-2">Create New Content</h1>
-          <p className="text-muted-foreground text-sm">Use AI to generate high-converting tweets and threads.</p>
+          <h1 className="text-2xl font-bold tracking-tight mb-2">Ghostwriter Core</h1>
+          <p className="text-muted-foreground text-sm">Craft authority-building founder narratives for your X profile.</p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex-1 flex flex-col">
-          <label className="text-sm font-medium mb-2 block">What do you want to talk about?</label>
-          <textarea
-            value={topic}
-            onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g. How to get started with React in 2024..."
-            className="w-full bg-background border border-border rounded-lg p-4 min-h-[120px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm mb-4"
-          />
+        <div className="bg-card border border-border/80 rounded-xl p-6 shadow-sm flex flex-col gap-5">
+          <div>
+            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80 mb-2 block">Founder Role</label>
+            <input
+              type="text"
+              placeholder="e.g. B2B SaaS Startup Founder..."
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-foreground placeholder:text-muted-foreground/60"
+            />
+          </div>
 
-          <div className="mb-6">
-            <label className="text-sm font-medium mb-3 block">Select Tone/Format</label>
+          <div>
+            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80 mb-2 block">Initial Topic / Idea</label>
+            <textarea
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="e.g. Just raised our Seed round, here is how we got our first 10 enterprise clients..."
+              className="w-full bg-background border border-border rounded-lg p-4 min-h-[140px] resize-none focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground/60"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80 mb-3 block">Selected Tone</label>
             <div className="flex flex-wrap gap-2">
-              {TONE_OPTIONS.map((tone) => (
+              {(['friendly', 'like a story', 'emotional'] as const).map((t) => (
                 <button
-                  key={tone}
-                  onClick={() => setSelectedTone(tone)}
+                  key={t}
+                  type="button"
+                  onClick={() => setTone(t)}
                   className={cn(
-                    "px-4 py-2 rounded-full text-xs font-medium transition-all duration-200 border",
-                    selectedTone === tone
-                      ? "bg-primary text-primary-foreground border-primary"
+                    "px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 border capitalize",
+                    tone === t
+                      ? "bg-primary/10 border-primary text-primary font-semibold"
                       : "bg-transparent border-border text-muted-foreground hover:border-primary/50"
                   )}
                 >
-                  {tone}
+                  {t}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="mt-auto">
-            <button
-              onClick={handleGenerate}
-              disabled={!topic || isGenerating}
-              className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(29,155,240,0.3)] hover:shadow-[0_0_25px_rgba(29,155,240,0.5)]"
-            >
-              {isGenerating ? (
-                <>
-                  <Sparkles className="w-5 h-5 animate-spin" />
-                  Generating Magic...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  Generate Thread
-                </>
-              )}
-            </button>
-          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={!topic || !role || isGenerating}
+            className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(29,155,240,0.2)] hover:shadow-[0_0_25px_rgba(29,155,240,0.4)] mt-2"
+          >
+            {isGenerating ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Engines Active...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                Generate Ideas
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Right Column - Preview area */}
-      <div className="bg-card border border-border rounded-xl overflow-hidden flex flex-col h-full">
-        <div className="bg-background/50 border-b border-border px-4 py-3 flex items-center gap-2">
-          <Twitter className="w-5 h-5 text-primary" />
-          <span className="font-semibold text-sm">Thread Preview</span>
+      {/* Right Column - Premium Structured Cards Grid */}
+      <div className="lg:col-span-8 bg-card border border-border/80 rounded-xl overflow-hidden flex flex-col h-full shadow-sm min-h-[500px]">
+        <div className="bg-background/50 border-b border-border/80 px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Twitter className="w-5 h-5 text-primary" />
+            <span className="font-semibold text-sm">Ghostwritten Output Architecture</span>
+          </div>
+          {result && (
+            <button 
+              onClick={handleCopyAll}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted text-xs font-semibold text-foreground transition-all shrink-0"
+            >
+              {copiedAll ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              Export Full Narrative
+            </button>
+          )}
         </div>
 
         <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-          {generatedContent.length > 0 ? (
-            <div className="space-y-0">
-              {generatedContent.map((tweet, index) => (
-                <div key={index} className="flex gap-3 relative pb-6 group">
-                  {index !== generatedContent.length - 1 && (
-                    <div className="absolute left-[19px] top-12 bottom-0 w-[2px] bg-border group-hover:bg-primary/30 transition-colors"></div>
-                  )}
-                  
-                  {twitterUser && twitterUser.profileImageUrl ? (
-                    <img 
-                      src={twitterUser.profileImageUrl} 
-                      alt="avatar" 
-                      className="w-10 h-10 rounded-full object-cover z-10 border-2 border-card"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center text-primary font-bold z-10 border-2 border-card">
-                      X
-                    </div>
-                  )}
-                  
-                  <div className="flex-1 pt-1">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="font-bold text-sm">{twitterUser ? twitterUser.name : 'You'}</span>
-                      <span className="text-muted-foreground text-sm">@{twitterUser ? twitterUser.username : 'username'}</span>
-                    </div>
-                    <p className="text-[15px] whitespace-pre-wrap mb-3 leading-snug">{tweet}</p>
-                    
-                    <div className="flex items-center gap-6 text-muted-foreground/60">
-                      <ImageIcon className="w-4 h-4 cursor-pointer hover:text-primary transition-colors" />
-                      <Smile className="w-4 h-4 cursor-pointer hover:text-primary transition-colors" />
-                      <FileText className="w-4 h-4 cursor-pointer hover:text-primary transition-colors" />
-                    </div>
-                  </div>
-                </div>
-              ))}
+          {isGenerating ? (
+            <div className="h-full flex flex-col items-center justify-center text-center py-20">
+              <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full animate-spin mb-4" />
+              <p className="text-xs font-mono uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Engines Active</p>
+            </div>
+          ) : result ? (
+            <div className="space-y-6">
+              <div className="bg-background/40 border border-border/60 rounded-xl p-4 flex gap-3 items-center">
+                <Sparkle className="w-5 h-5 text-primary shrink-0 animate-pulse" />
+                <p className="text-xs font-medium text-foreground leading-relaxed italic">{result.header}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {result.ideas.map((idea, index) => (
+                  <TweetCard 
+                    key={index} 
+                    idea={idea} 
+                    index={index} 
+                    onSchedule={() => handleOpenSchedule(idea.content)} 
+                  />
+                ))}
+              </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
+            <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50 py-20">
               <Twitter className="w-16 h-16 mb-4 opacity-20" />
-              <p>Your generated thread will appear here</p>
+              <h3 className="text-base font-semibold text-foreground mb-1">Ready to ghostwrite.</h3>
+              <p className="text-sm max-w-md text-center">Enter your stats on the left. We'll architect a narrative that positions you as a leading voice on X.</p>
             </div>
           )}
         </div>
-        
-        {generatedContent.length > 0 && (
-          <div className="p-4 border-t border-border bg-background/50 flex gap-3">
-            <button 
-              onClick={() => {
-                const newText = prompt("Copy-paste or edit the tweets (separated by line breaks):", generatedContent.join("\n\n"));
-                if (newText) setGeneratedContent(newText.split("\n\n"));
-              }}
-              className="flex-1 bg-background border border-border text-foreground font-semibold py-2.5 rounded-lg hover:bg-muted transition-colors"
-            >
-              Edit Manually
-            </button>
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="flex-1 bg-primary text-primary-foreground font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
-            >
-              <Send className="w-4 h-4" />
-              Send to Queue
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Glassmorphic Scheduling Modal */}
@@ -267,10 +330,33 @@ export default function AIWriterPage() {
             
             <div>
               <h2 className="text-xl font-bold tracking-tight">Queue Post</h2>
-              <p className="text-muted-foreground text-sm">Choose when this thread should go live.</p>
+              <p className="text-muted-foreground text-sm">Choose when this tweet should go live.</p>
             </div>
 
-            <div className="flex flex-col gap-3 mt-2">
+            {/* Content Preview */}
+            <div className="bg-background/80 border border-border rounded-xl p-4 relative flex gap-3 items-start my-1">
+              {twitterUser && twitterUser.profileImageUrl ? (
+                <img 
+                  src={twitterUser.profileImageUrl} 
+                  alt="avatar" 
+                  className="w-9 h-9 rounded-full object-cover z-10 border border-border"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center text-primary font-bold border border-border">
+                  X
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="font-bold text-xs truncate">{twitterUser ? twitterUser.name : 'You'}</span>
+                  <span className="text-muted-foreground text-xs truncate">@{twitterUser ? twitterUser.username : 'username'}</span>
+                </div>
+                <p className="text-xs text-foreground/90 leading-normal whitespace-pre-wrap">{schedulingContent[0]}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 mt-1">
               <label className="flex items-center gap-3 p-3 border border-border rounded-xl cursor-pointer hover:bg-muted/30 transition-colors">
                 <input 
                   type="radio" 
@@ -301,7 +387,7 @@ export default function AIWriterPage() {
             </div>
 
             {scheduleType === 'Scheduled' && (
-              <div className="grid grid-cols-2 gap-4 mt-2">
+              <div className="grid grid-cols-2 gap-4 mt-1">
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground block mb-1">Date</label>
                   <div className="relative">
@@ -332,7 +418,7 @@ export default function AIWriterPage() {
             <button
               onClick={handleSchedule}
               disabled={isSaving}
-              className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50 mt-4 shadow-sm"
+              className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50 mt-3 shadow-sm"
             >
               {isSaving ? (
                 <>
@@ -342,7 +428,7 @@ export default function AIWriterPage() {
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  {scheduleType === 'Scheduled' ? 'Schedule Thread' : 'Save as Draft'}
+                  {scheduleType === 'Scheduled' ? 'Schedule Post' : 'Save as Draft'}
                 </>
               )}
             </button>
@@ -352,4 +438,3 @@ export default function AIWriterPage() {
     </div>
   );
 }
-
