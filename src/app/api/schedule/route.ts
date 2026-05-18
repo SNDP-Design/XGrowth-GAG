@@ -10,6 +10,17 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Initialize QStash Client
 const qstash = new QStashClient({ token: process.env.QSTASH_TOKEN || '' });
 
+// Helper to get site URL dynamically
+const getSiteUrl = () => {
+  if (process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('localhost')) {
+    return process.env.NEXT_PUBLIC_SITE_URL;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+};
+
 // POST: Create a new tweet (either Draft or Scheduled)
 export async function POST(req: Request) {
   try {
@@ -43,7 +54,7 @@ export async function POST(req: Request) {
         console.log(`Scheduling background task with QStash for: ${scheduledFor}`);
         
         const qstashResponse = await qstash.publishJSON({
-          url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/cron/post-tweet`,
+          url: `${getSiteUrl()}/api/cron/post-tweet`,
           body: {
             content: content,
             tweetId: tweet.id,
@@ -163,7 +174,7 @@ export async function PUT(req: Request) {
       try {
         console.log(`Scheduling new background task with QStash for: ${scheduledFor}`);
         const qstashResponse = await qstash.publishJSON({
-          url: `${process.env.NEXT_PUBLIC_SITE_URL}/api/cron/post-tweet`,
+          url: `${getSiteUrl()}/api/cron/post-tweet`,
           body: {
             content: content || existingTweet.content,
             tweetId: id,
