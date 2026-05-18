@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
     if (dbError) {
       console.error('Database error:', dbError);
-      return NextResponse.json({ error: 'Failed to save tweet' }, { status: 500 });
+      return NextResponse.json({ error: `Database error: ${dbError.message} (Code: ${dbError.code})` }, { status: 500 });
     }
 
     // 2. If it is scheduled, queue it in QStash
