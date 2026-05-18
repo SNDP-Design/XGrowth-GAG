@@ -66,8 +66,7 @@ export async function POST(req: Request) {
         // Rollback status to Draft since scheduling failed
         await supabase.from('tweets').update({ status: 'Draft', scheduled_for: null }).eq('id', tweet.id);
         return NextResponse.json({ 
-          error: 'Failed to schedule tweet with background service. Saved as Draft instead.',
-          details: qstashError.message 
+          error: `Failed to schedule with QStash: ${qstashError.message || 'Unknown QStash Error'}. Saved as Draft instead.`
         }, { status: 500 });
       }
     }
@@ -175,8 +174,7 @@ export async function PUT(req: Request) {
       } catch (qstashError: any) {
         console.error('QStash scheduling failed on update:', qstashError);
         return NextResponse.json({ 
-          error: 'Failed to reschedule background task. Changes rolled back.',
-          details: qstashError.message 
+          error: `Failed to reschedule background task: ${qstashError.message}. Changes rolled back.`
         }, { status: 500 });
       }
     }
