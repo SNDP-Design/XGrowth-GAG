@@ -15,9 +15,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Twitter API keys not configured' }, { status: 400 });
     }
 
-    // Fetch user details including name, username, and profile image
+    // Fetch user details including name, username, profile image, and public metrics
     const user = await twitterClient.v2.me({
-      'user.fields': ['profile_image_url', 'description']
+      'user.fields': ['profile_image_url', 'description', 'public_metrics']
     });
 
     if (!user || !user.data) {
@@ -28,6 +28,9 @@ export async function GET() {
       name: user.data.name,
       username: user.data.username,
       profileImageUrl: user.data.profile_image_url || null,
+      followersCount: user.data.public_metrics?.followers_count || 0,
+      followingCount: user.data.public_metrics?.following_count || 0,
+      tweetCount: user.data.public_metrics?.tweet_count || 0,
     });
   } catch (error: any) {
     console.error('Error fetching Twitter user info:', error);
