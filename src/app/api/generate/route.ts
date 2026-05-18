@@ -16,11 +16,13 @@ const MODELS_TO_TRY = [
 
 export async function POST(req: Request) {
   try {
-    const { role, topic, tone } = await req.json();
+    const { topic, tone } = await req.json();
 
-    if (!topic || !role) {
-      return NextResponse.json({ error: 'Role and topic are required' }, { status: 400 });
+    if (!topic) {
+      return NextResponse.json({ error: 'Topic is required' }, { status: 400 });
     }
+
+    const role = "authoritative startup founder and creator";
 
     const toneInstructions = {
       friendly: "Warm, approachable, and encouraging. Use more conversational flow.",

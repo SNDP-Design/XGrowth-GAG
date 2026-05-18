@@ -73,7 +73,6 @@ function TweetCard({ idea, index, onSchedule }: { idea: TweetIdea; index: number
 
 export default function AIWriterPage() {
   // Ghostwriter State
-  const [role, setRole] = useState("");
   const [topic, setTopic] = useState("");
   const [tone, setTone] = useState<'friendly' | 'like a story' | 'emotional'>('friendly');
   
@@ -114,7 +113,7 @@ export default function AIWriterPage() {
   }, []);
 
   const handleGenerate = async () => {
-    if (!topic || !role) return;
+    if (!topic) return;
     setIsGenerating(true);
     setResult(null);
     
@@ -124,7 +123,7 @@ export default function AIWriterPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ role, topic, tone }),
+        body: JSON.stringify({ topic, tone }),
       });
       
       const data = await response.json();
@@ -204,17 +203,6 @@ export default function AIWriterPage() {
 
         <div className="bg-card border border-border/80 rounded-xl p-6 shadow-sm flex flex-col gap-5">
           <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80 mb-2 block">Founder Role</label>
-            <input
-              type="text"
-              placeholder="e.g. B2B SaaS Startup Founder..."
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="w-full bg-background border border-border rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm text-foreground placeholder:text-muted-foreground/60"
-            />
-          </div>
-
-          <div>
             <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground/80 mb-2 block">Initial Topic / Idea</label>
             <textarea
               value={topic}
@@ -247,7 +235,7 @@ export default function AIWriterPage() {
 
           <button
             onClick={handleGenerate}
-            disabled={!topic || !role || isGenerating}
+            disabled={!topic || isGenerating}
             className="w-full bg-primary text-primary-foreground font-semibold py-3 rounded-lg flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(29,155,240,0.2)] hover:shadow-[0_0_25px_rgba(29,155,240,0.4)] mt-2"
           >
             {isGenerating ? (
