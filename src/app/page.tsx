@@ -27,13 +27,28 @@ export default function AIWriterPage() {
   const [scheduleTime, setScheduleTime] = useState("12:00");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Set default date to today
+  const [twitterUser, setTwitterUser] = useState<{ name: string; username: string; profileImageUrl: string | null } | null>(null);
+
+  // Set default date to today and fetch Twitter user info
   useEffect(() => {
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     setScheduleDate(`${yyyy}-${mm}-${dd}`);
+
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/twitter/user');
+        if (res.ok) {
+          const data = await res.json();
+          setTwitterUser(data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch twitter user info:", err);
+      }
+    };
+    fetchUser();
   }, []);
 
   const handleGenerate = async () => {
@@ -180,14 +195,23 @@ export default function AIWriterPage() {
                     <div className="absolute left-[19px] top-12 bottom-0 w-[2px] bg-border group-hover:bg-primary/30 transition-colors"></div>
                   )}
                   
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center text-primary font-bold z-10 border-2 border-card">
-                    X
-                  </div>
+                  {twitterUser && twitterUser.profileImageUrl ? (
+                    <img 
+                      src={twitterUser.profileImageUrl} 
+                      alt="avatar" 
+                      className="w-10 h-10 rounded-full object-cover z-10 border-2 border-card"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-primary/20 flex-shrink-0 flex items-center justify-center text-primary font-bold z-10 border-2 border-card">
+                      X
+                    </div>
+                  )}
                   
                   <div className="flex-1 pt-1">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <span className="font-bold text-sm">You</span>
-                      <span className="text-muted-foreground text-sm">@username</span>
+                      <span className="font-bold text-sm">{twitterUser ? twitterUser.name : 'You'}</span>
+                      <span className="text-muted-foreground text-sm">@{twitterUser ? twitterUser.username : 'username'}</span>
                     </div>
                     <p className="text-[15px] whitespace-pre-wrap mb-3 leading-snug">{tweet}</p>
                     
